@@ -1,0 +1,20 @@
+{
+  "name": "springs",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "budo triangle.js --serve assets/build/bundle.js --live --verbose | garnish",
+    "build": "browserify triangle.js -d -g [uglifyify -x .js] | exorcist assets/build/bundle.js.map > assets/build/bundle.js"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "circumcenter": "^1.0.0",
+    "dat-gui": "^0.5.0",
+    "delaunay-triangulate": "^1.1.6",
+    "exorcist": "^0.4.0",
+    "gl-vec2": "^1.0.0",
+    "uglifyify": "^3.0.1"
+  }
+}
