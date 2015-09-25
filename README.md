@@ -1,8 +1,8 @@
-# Delaunay Triangulation
+# Spring Mesh Demo
 
-* [Demo](http://gregtatum.com/poems/delaunay/)
+* [Demo](http://gregtatum.com/poems/springs/)
 
-A quick sketch for me to understand what's going on with delaunay triangulation. Kudos to Mikola Lysenki's [delaunay triangulation](https://github.com/mikolalysenko/delaunay-triangulate) module and [circumcenter](https://github.com/mikolalysenko/circumcenter) module.
+A quick sketch for me to understand what's going on with springs on a mesh.
 
 # Building
 
