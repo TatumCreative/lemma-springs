@@ -164,12 +164,19 @@ function _loopFn( update, draw ) {
 
 function _initDatGui( config ) {
 	
-	var gui = new Dat.GUI()
-	
+	var gui = new Dat.GUI({autoPlace: false})
+	var $gui = $(gui.domElement)
 	gui.add( config, 'springStrength', 0, 0.2 )
 	gui.add( config, 'springDamper', 0, 1 )
 	gui.add( config, 'restingLength', 1, 500 )
 	
+	$('body').append(gui.domElement)
+	
+	$gui.css({
+		position: "absolute",
+		top : 0,
+		left : 0
+	})
 }
 
 function init() {

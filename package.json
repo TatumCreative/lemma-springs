@@ -4,13 +4,19 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "budo triangle.js --serve assets/build/bundle.js --live --verbose | garnish",
-    "build": "browserify triangle.js -d -g [uglifyify -x .js] | exorcist assets/build/bundle.js.map > assets/build/bundle.js",
-    "build2": "browserify triangle.js > assets/build/bundle.js"
+    "start": "budo springs.js --serve assets/build/bundle.js --live --verbose | garnish",
+    "build": "browserify springs.js -d -g [uglifyify -x .js] | exorcist assets/build/bundle.js.map > assets/build/bundle.js"
   },
   "author": "",
   "license": "MIT",
+  "browserify": {
+    "transform": [
+      "babelify"
+    ]
+  },
   "devDependencies": {
+    "babelify": "^6.3.0",
+    "budo": "^5.1.0",
     "circumcenter": "^1.0.0",
     "dat-gui": "^0.5.0",
     "delaunay-triangulate": "^1.1.6",
