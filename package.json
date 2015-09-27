@@ -15,6 +15,7 @@
     ]
   },
   "devDependencies": {
+    "@tatumcreative/on-tap": "^1.0.1",
     "babelify": "^6.3.0",
     "budo": "^5.1.0",
     "circumcenter": "^1.0.0",
