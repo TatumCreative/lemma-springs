@@ -2,6 +2,7 @@ var CreateTriangles = require('delaunay-triangulate')
 var TAU = Math.PI * 2
 var Vec2 = require('gl-vec2')
 var Dat = require('dat-gui')
+var OnTap = require('@tatumcreative/on-tap')
 
 function _prepCanvasAndGetCtx() {
 	
@@ -20,16 +21,11 @@ function _prepCanvasAndGetCtx() {
 
 function _clickToCreatePoints( current, draw ) {
 	
+	var options = { devicePixelRatio : true }
 	
-	$('canvas').click(function(e) {
+	OnTap( document.getElementsByTagName('canvas'), function(e) {
 		
-		e.preventDefault()
-		e.stopImmediatePropagation()
-		
-		var x = e.pageX * devicePixelRatio
-		var y = e.pageY * devicePixelRatio
-		
-		var point = [x,y]
+		var point = [e.x,e.y]
 		
 		current.points.push(point)
 		current.velocities.push([0,0])
@@ -46,7 +42,8 @@ function _clickToCreatePoints( current, draw ) {
 		draw()
 		
 		return false
-	})
+		
+	}, options)
 }
 
 function _drawTriangles( ctx, config, triangles, points ) {
@@ -87,33 +84,39 @@ function _drawPoints( ctx, config, points ) {
 	})
 }
 
-function _updateSpring( config, pointA, pointB, velocityA, velocityB ) {
+var _updateSpring = (function() {
 	
-	var separation = Vec2.distance( pointA, pointB )
+	var force = []
 	
-	var limitSeparation = separation
-	    limitSeparation = Math.min( config.restingLength * 4, limitSeparation )
-	    limitSeparation = Math.max( config.restingLength * 0.01, limitSeparation )
-
-	var stretch = (limitSeparation - config.restingLength) * config.springStrength
+	return function _updateSpring( config, pointA, pointB, velocityA, velocityB ) {
 	
-	var forceX = (pointA[0] - pointB[0]) / separation
-	var forceY = (pointA[1] - pointB[1]) / separation
-	
-	forceX *= stretch
-	forceY *= stretch
+		var separation = Vec2.distance( pointA, pointB )
 
-	velocityA[0] = (velocityA[0] - forceX) * config.springDamper
-	velocityA[1] = (velocityA[1] - forceY) * config.springDamper
-	velocityB[0] = (velocityB[0] + forceX) * config.springDamper
-	velocityB[1] = (velocityB[1] + forceY) * config.springDamper
+		// Constrain the effect to not allow ridiculous values
+		var limitSeparation = separation
+		    limitSeparation = Math.min( config.restingLength * config.maxSeparation, limitSeparation )
+		    limitSeparation = Math.max( config.restingLength * config.minSeparation, limitSeparation )
 
-	pointA[0] += velocityA[0]
-	pointA[1] += velocityA[1]
+		var forceMagnitude = (limitSeparation - config.restingLength) * config.springStrength
 
-	pointB[0] += velocityB[0]
-	pointB[1] += velocityB[1]
-}
+		// Magnitude => force vector
+		Vec2.copy     ( force, pointA )
+		Vec2.subtract ( force, force, pointB )
+		Vec2.scale    ( force, force, forceMagnitude / separation ) 
+
+		// Add/subtract the force to the velocities
+		Vec2.subtract ( velocityA, velocityA, force )
+		Vec2.add      ( velocityB, velocityB, force )
+
+		// Friction / spring dampening
+		Vec2.scale    ( velocityA, velocityA, config.springDamper )
+		Vec2.scale    ( velocityB, velocityB, config.springDamper )
+
+		// Apply the velocity
+		Vec2.add      ( pointA, pointA, velocityA )
+		Vec2.add      ( pointB, pointB, velocityB )
+	}
+})()
 
 function _updateFn( config, current ) {
 	
@@ -166,9 +169,12 @@ function _initDatGui( config ) {
 	
 	var gui = new Dat.GUI({autoPlace: false})
 	var $gui = $(gui.domElement)
+	
 	gui.add( config, 'springStrength', 0, 0.2 )
 	gui.add( config, 'springDamper', 0, 1 )
 	gui.add( config, 'restingLength', 1, 500 )
+	gui.add( config, 'maxSeparation', 1, 8 )
+	gui.add( config, 'minSeparation', 0.001, 1 )
 	
 	$('body').append(gui.domElement)
 	
@@ -191,6 +197,8 @@ function init() {
 		restingLength  : 0.1 * Vec2.length([window.innerWidth, window.innerHeight]),
 		springStrength : 0.01,
 		springDamper   : 0.9,
+		maxSeparation  : 4,
+		minSeparation  : 0.01
 	}
 	
 	var current = {
