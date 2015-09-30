@@ -8,7 +8,6 @@ var current = {
 	velocities : [],
 	transferables : {
 		points          : null, // Float32Array
-		velocities      : null, //Float32Array
 		triangleIndices : null, // Uint32Array
 		pointsCount     : 0,
 		trianglesCount   : 0,
@@ -54,11 +53,12 @@ function _packVectors( array, buffer ) {
 }
 
 function _updateData( data ) {
-	// Explicitely copy over the data
 	
 	_sizeArrays( current.points, data.pointsCount )
 	_sizeArrays( current.velocities, data.pointsCount )
 	_sizeArrays( current.triangles, data.trianglesCount )
+	
+	// TODO - optimize unpacking
 	
 	_unpackVectors( current.points,      data.points,     data.pointsCount )
 	_unpackIndices(	current.triangles,   current.points,  data.triangleIndices, data.trianglesCount )
@@ -146,8 +146,8 @@ onmessage = function(e) {
 		_updateData( e.data )
 	}
 	
+	// Explicitely copy over the transferables
 	current.transferables.points          = e.data.points
-	current.transferables.velocities      = e.data.velocities
 	current.transferables.triangleIndices = e.data.triangleIndices
 	current.transferables.pointsCount     = e.data.pointsCount
 	current.transferables.trianglesCount  = e.data.trianglesCount

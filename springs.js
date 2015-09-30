@@ -176,6 +176,8 @@ function _receiveWorkerMessageFn( current, worker ) {
 		transferables.points = e.data.points
 		transferables.triangleIndices = e.data.triangleIndices
 		
+		// TODO - optimize the following:
+		
 		// Copy over the target points calculated in the worker
 		for( var i=0; i < transferables.pointsCount * 2; i++ ) {
 			current.targetPoints[i] = transferables.points[i]
