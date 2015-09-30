@@ -3,6 +3,7 @@ var TAU = Math.PI * 2
 var Vec2 = require('gl-vec2')
 var Dat = require('dat-gui')
 var OnTap = require('@tatumcreative/on-tap')
+var Lerp = require('lerp')
 
 function _prepCanvasAndGetCtx() {
 	
@@ -26,9 +27,8 @@ function _clickToCreatePoints( current, draw ) {
 	OnTap( document.getElementsByTagName('canvas'), function(e) {
 		
 		var point = [e.x,e.y]
-		
+
 		current.points.push(point)
-		current.velocities.push([0,0])
 		current.triangleIndices = CreateTriangles( current.points )
 		current.triangles = current.triangleIndices.map(function( indices ) {
 			
@@ -39,8 +39,11 @@ function _clickToCreatePoints( current, draw ) {
 			return [pt1, pt2, pt3]
 		})
 		
-		draw()
+		var pointOffset = current.points.length * 2
+		current.targetPoints[pointOffset - 2] = point[0]
+		current.targetPoints[pointOffset - 1] = point[1]
 		
+		draw()
 		return false
 		
 	}, options)
@@ -52,7 +55,6 @@ function _drawTriangles( ctx, config, triangles, points ) {
 	ctx.strokeStyle = config.lineColor
 
 	ctx.beginPath()
-	
 	triangles.forEach(function( triangle ) {
 		
 		ctx.moveTo( triangle[0][0], triangle[0][1] )
@@ -84,58 +86,19 @@ function _drawPoints( ctx, config, points ) {
 	})
 }
 
-var _updateSpring = (function() {
+function _updateFn( config, current, worker ) {
 	
-	var force = []
-	
-	return function _updateSpring( config, pointA, pointB, velocityA, velocityB ) {
-	
-		var separation = Vec2.distance( pointA, pointB )
-
-		// Constrain the effect to not allow ridiculous values
-		var limitSeparation = separation
-		    limitSeparation = Math.min( config.restingLength * config.maxSeparation, limitSeparation )
-		    limitSeparation = Math.max( config.restingLength * config.minSeparation, limitSeparation )
-
-		var forceMagnitude = (limitSeparation - config.restingLength) * config.springStrength
-
-		// Magnitude => force vector
-		Vec2.copy     ( force, pointA )
-		Vec2.subtract ( force, force, pointB )
-		Vec2.scale    ( force, force, forceMagnitude / separation ) 
-
-		// Add/subtract the force to the velocities
-		Vec2.subtract ( velocityA, velocityA, force )
-		Vec2.add      ( velocityB, velocityB, force )
-
-		// Friction / spring dampening
-		Vec2.scale    ( velocityA, velocityA, config.springDamper )
-		Vec2.scale    ( velocityB, velocityB, config.springDamper )
-
-		// Apply the velocity
-		Vec2.add      ( pointA, pointA, velocityA )
-		Vec2.add      ( pointB, pointB, velocityB )
-	}
-})()
-
-function _updateFn( config, current ) {
+	var target = current.targetPoints
 	
 	return function update() {
 		
-		current.triangleIndices.forEach( indices => {
+		current.points.forEach( (point, i) => {
 			
-			indices.forEach( ( indexA, i ) => {
-				
-				var indexB = indices[ (i + 1) % 3 ]
-				
-				var pointA = current.points[ indexA ]
-				var pointB = current.points[ indexB ]
-				var velocityA = current.velocities[ indexA ]
-				var velocityB = current.velocities[ indexB ]
-				
-				_updateSpring( config, pointA, pointB, velocityA, velocityB )
-			})
+			point[0] = Lerp( point[0], target[i*2+0], config.lerpTowardsTarget )
+			point[1] = Lerp( point[1], target[i*2+1], config.lerpTowardsTarget )
 		})
+		
+		_postToWorker( worker, current.transferables )
 	}
 }
 
@@ -165,16 +128,21 @@ function _loopFn( update, draw ) {
 	return loop
 }
 
-function _initDatGui( config ) {
+function _initDatGui( config, worker ) {
 	
 	var gui = new Dat.GUI({autoPlace: false})
 	var $gui = $(gui.domElement)
 	
-	gui.add( config, 'springStrength', 0, 0.2 )
-	gui.add( config, 'springDamper', 0, 1 )
-	gui.add( config, 'restingLength', 1, 500 )
-	gui.add( config, 'maxSeparation', 1, 8 )
-	gui.add( config, 'minSeparation', 0.001, 1 )
+	function updateWorker() {
+		worker.postMessage({
+			config: config
+		})
+	}
+	gui.add( config, 'springStrength', 0, 0.2 )  .onChange( updateWorker )
+	gui.add( config, 'springDamper', 0, 1 )      .onChange( updateWorker )
+	gui.add( config, 'restingLength', 1, 500 )   .onChange( updateWorker )
+	gui.add( config, 'maxSeparation', 1, 8 )     .onChange( updateWorker )
+	gui.add( config, 'minSeparation', 0.001, 1 ) .onChange( updateWorker )
 	
 	$('body').append(gui.domElement)
 	
@@ -185,30 +153,111 @@ function _initDatGui( config ) {
 	})
 }
 
+function _createWorker( config, current ) {
+	
+	var worker = new Worker('assets/build/worker.bundle.js')
+	
+	// Pass over the config
+	worker.postMessage({
+		config: config
+	})
+	worker.onmessage = _receiveWorkerMessageFn( current, worker )
+	
+	return worker
+}
+
+function _receiveWorkerMessageFn( current, worker ) {
+	
+	var transferables = current.transferables
+	
+	return function receiveWorkerMessage( e ) {
+		
+		// Copy back the buffers to the current object
+		transferables.points = e.data.points
+		transferables.triangleIndices = e.data.triangleIndices
+		
+		// Copy over the target points calculated in the worker
+		for( var i=0; i < transferables.pointsCount * 2; i++ ) {
+			current.targetPoints[i] = transferables.points[i]
+		}
+		
+		// Copy any newly created triangle indices over to the worker
+		for( var i = 0; i < current.triangleIndices.length; i++ ) {
+			transferables.triangleIndices[i*3+0] = current.triangleIndices[i][0]
+			transferables.triangleIndices[i*3+1] = current.triangleIndices[i][1]
+			transferables.triangleIndices[i*3+2] = current.triangleIndices[i][2]
+		}
+		
+		// Copy any newly created points over to the worker
+		for( var i = Math.max(0, transferables.pointsCount - 1); i < current.points.length; i++ ) {
+			transferables.points[i*2+0] = current.points[i][0]
+			transferables.points[i*2+1] = current.points[i][1]
+		}
+
+		if(
+			transferables.trianglesCount !== current.triangleIndices.length ||
+			transferables.pointsCount    !== current.points.length
+		) {
+			transferables.needsUpdate    = true
+			transferables.trianglesCount = current.triangleIndices.length
+			transferables.pointsCount    = current.points.length
+		}
+		
+		var pts = transferables.points
+	}
+}
+
+function _postToWorker( worker, transferables ) {
+	
+	var hasDataToPost = transferables.points.length > 0
+	
+	if( hasDataToPost ) {
+		
+		worker.postMessage( transferables, [
+			transferables.points.buffer,
+			transferables.triangleIndices.buffer,
+		])
+		
+		transferables.needsUpdate = false
+	}
+}
+
 function init() {
 	
 	var ctx = _prepCanvasAndGetCtx()
 	
 	var config = {
-		pointSize      : 4,
-		pointColor     : "#fff",
-		lineWidth      : 2,
-		lineColor      : "#208FF3",
-		restingLength  : 0.1 * Vec2.length([window.innerWidth, window.innerHeight]),
-		springStrength : 0.01,
-		springDamper   : 0.9,
-		maxSeparation  : 4,
-		minSeparation  : 0.01
+		pointSize         : 4,
+		pointColor        : "#fff",
+		lineWidth         : 2,
+		lineColor         : "#208FF3",
+		restingLength     : 0.1 * Vec2.length([window.innerWidth, window.innerHeight]),
+		springStrength    : 0.01,
+		springDamper      : 0.9,
+		maxSeparation     : 4,
+		minSeparation     : 0.01,
+		maxPointCount     : 1000,
+		lerpTowardsTarget : 0.05,
 	}
 	
 	var current = {
-		points : [],
-		velocities : [],
-		triangles : [],
+		count           : 0,
+		points          : [],
+		targets         : [],
+		triangles       : [],
 		triangleIndices : [],
+		targetPoints    : new Float32Array( config.maxPointCount * 2 ),
+		transferables   : {
+			points          : new Float32Array( config.maxPointCount * 2 ),
+			triangleIndices : new Uint32Array( config.maxPointCount * 3 ),
+			pointsCount     : 0,
+			trianglesCount  : 0,
+			needsUpdate     : true,
+		}
 	}
-	
-	var update = _updateFn( config, current )
+
+	var worker = _createWorker( config, current )
+	var update = _updateFn( config, current, worker )
 	var draw = _drawFn( ctx, config, current )
 	
 	// Create and start loop
@@ -216,7 +265,7 @@ function init() {
 	
 	_clickToCreatePoints( current, draw )
 	
-	_initDatGui( config )
+	_initDatGui( config, worker )
 }
 
 jQuery(init)

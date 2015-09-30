@@ -5,7 +5,12 @@
   "main": "index.js",
   "scripts": {
     "start": "budo springs.js --serve assets/build/bundle.js --live --verbose | garnish",
-    "build": "browserify springs.js -d -g [uglifyify -x .js] | exorcist assets/build/bundle.js.map > assets/build/bundle.js"
+    "build:main": "browserify springs.js -d -g [uglifyify -x .js] | exorcist assets/build/bundle.js.map > assets/build/bundle.js",
+    "build:worker": "browserify worker.js -d -g [uglifyify -x .js] | exorcist assets/build/worker.bundle.js.map > assets/build/worker.bundle.js",
+    "watch:main": "watchify springs.js -o assets/build/bundle.js -v -d",
+    "watch:worker": "watchify worker.js -o assets/build/worker.bundle.js -v -d",
+    "watch": "parallelshell 'npm run watch:main' 'npm run watch:worker'",
+    "build": "parallelshell 'npm run build:main' 'npm run build:worker'"
   },
   "author": "",
   "license": "MIT",
@@ -23,7 +28,9 @@
     "delaunay-triangulate": "^1.1.6",
     "exorcist": "^0.4.0",
     "gl-vec2": "^1.0.0",
+    "lerp": "^1.0.3",
     "minimist": "^1.2.0",
+    "parallelshell": "^2.0.0",
     "uglifyify": "^3.0.1"
   }
 }
