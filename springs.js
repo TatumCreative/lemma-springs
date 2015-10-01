@@ -239,7 +239,7 @@ function init() {
 		maxSeparation     : 4,
 		minSeparation     : 0.01,
 		maxPointCount     : 1000,
-		lerpTowardsTarget : 0.05,
+		lerpTowardsTarget : 0.01,
 	}
 	
 	var current = {

@@ -2,7 +2,7 @@
 
 * [Demo](http://gregtatum.com/poems/springs/)
 
-A quick sketch for me to understand what's going on with springs on a mesh.
+A quick sketch for me to understand what's going on with springs on a mesh. A recent refactor moved the spring calculations into a web worker.
 
 # Building
 
